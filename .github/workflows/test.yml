@@ -1,0 +1,68 @@
+name: Test
+name: Go CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }} with Go ${{ matrix.go-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        go-version: [ '1.21', '1.22', '1.23' ]
+      fail-fast: false
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache-dependency-path: go.sum
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ matrix.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ matrix.os }}-go-${{ matrix.go-version }}-
+
+      - name: Install dependencies
+        run: |
+          go mod tidy
+          go mod download
+
+      - name: Run Unit tests with coverage
+        run: |
+          go test -v -race -coverprofile=covprofile -covermode=atomic -coverpkg=./... ./...
+
+      - name: Install golangci-lint
+        if: runner.os == 'Linux'
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Run lint (Linux only)
+        if: runner.os == 'Linux'
+        run: golangci-lint run --timeout=5m
+
+      - name: Install goveralls
+        if: runner.os == 'Linux'
+        run: go install github.com/mattn/goveralls@latest
+
+      - name: Send coverage to Coveralls (Linux only)
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        env:
+          COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: goveralls -coverprofile=covprofile -service=github -repotoken=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: go build -v ./...
