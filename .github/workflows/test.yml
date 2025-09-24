@@ -47,7 +47,7 @@ jobs:
 
       - name: Install golangci-lint
         if: runner.os == 'Linux'
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.2 # 兼容Go 1.23的版本
 
       - name: Run lint (Linux only)
         if: runner.os == 'Linux'
